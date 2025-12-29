@@ -1,0 +1,6 @@
+videos/
+frames/
+*.mp4
+*.jpg
+__pycache__
+metadata/*.json
