@@ -1,0 +1,15 @@
+data:
+  video_dir: "videos"
+  frame_output_dir: "frames"
+
+frame_extraction:
+  nth_frame: 10
+  image_format: "jpg"
+
+metadata:
+  output_path: "metadata/metadata.json"
+
+formats:
+  - mp4
+  - avi
+  - mov
