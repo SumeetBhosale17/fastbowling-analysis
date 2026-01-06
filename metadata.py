@@ -4,7 +4,7 @@ import cv2
 import logging
 
 def save_metadata(cap, video_name, metadata_path, nth):
-    fps = int(cap.get(cv2.CAP_PROP_FPS))
+    fps = round(cap.get(cv2.CAP_PROP_FPS))
     frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
     duration = frame_count / fps if fps > 0 else 0
 

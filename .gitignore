@@ -4,3 +4,4 @@ frames/
 *.jpg
 __pycache__
 metadata/*.json
+pose_output/

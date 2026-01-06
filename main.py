@@ -4,6 +4,7 @@ import yaml
 import cv2
 import logging
 
+from run_pose import run_pose_pipeline
 from utils import setup_logging
 from metadata import save_metadata
 from extract_frames import extract_frames
@@ -37,6 +38,8 @@ def main():
         save_metadata(cap, video, metadata_path, nth)
         extract_frames(cap, nth, video, frame_dir)
         cap.release()
+    
+    run_pose_pipeline('configs/pose.yaml')
 
 if __name__ == "__main__":
     main()
