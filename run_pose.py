@@ -1,16 +1,14 @@
 from __future__ import annotations
 
-import json
-import os
 import logging
-from utils import setup_logging
+from core.video_context import VideoContext
 from glob import glob
 from pathlib import Path
-from typing import Dict, Any, List
+import json
+from typing import List
 
 import cv2
 import mediapipe as mp
-import yaml
 
 POSE_CONNECTIONS = [
     # Arms
@@ -32,31 +30,26 @@ POSE_CONNECTIONS = [
     (29, 31), (30, 32),
 ]
 
-def load_config(path: str) -> Dict[str, Any]:
-    """
-    Load YAML configutation file.
+logger = logging.getLogger(__name__)
+logging.getLogger("mediapipe").setLevel(logging.ERROR)
+logging.getLogger("tensorflow").setLevel(logging.ERROR)
 
-    Args:
-        path: Path to YAML config.
-    
-    Returns:
-        Parsed configuration dictionary.
-    """
-    with open(path, "r", encoding="utf-8") as f:
-        return yaml.safe_load(f)
-    
-
-def load_frames(frames_dir: str, pattern: str) -> List[str]:
+def load_frames(video_ctx: VideoContext, cfg: dict) -> List[str]:
     """
     Load and sort frame paths.
 
     Args:
-        frames_dir: Directory containing extracted frames.
-        pattern: Filename glob pattern.
+        video_ctx: VideoContext.
+        cfg: config dict
 
     Returns:
         Sorted list of frame file paths.
     """
+    frames_dir = (
+        Path(cfg["frames"]["output_dir"]) /
+        video_ctx.video_id
+    )
+    pattern = cfg["frames"]["frame_glob"]
     paths = glob(str(Path(frames_dir) / pattern))
     paths.sort()
     if not paths:
@@ -64,19 +57,21 @@ def load_frames(frames_dir: str, pattern: str) -> List[str]:
     return paths
 
 
-def compute_timestamp_ms(index: int, fps: float, start_ms: int) -> int:
+def compute_timestamp_ms(frame_index: int, video_ctx: VideoContext) -> int:
     """
     Compute monotonic timestamp for VIDEO mode.
 
-    Args: 
-        index: Frame index (0-based)
-        fps: Frames per second.
-        start_ms: Initial timestamp offset.
-
+    Args:
+        frame_index: Frame index (0-based).
+        video_ctx: VideoContext dataclass of video.
+    
     Returns:
         Timestamp in milliseconds.
     """
-    return int(start_ms + (index * 1000.0 / fps))
+    return int(
+        video_ctx.start_timestamp_ms +
+        (frame_index * video_ctx.frame_stride * 1000.0 / video_ctx.fps)
+    )
 
 
 def mp_image_from_bgr(bgr_image) -> mp.Image:
@@ -133,153 +128,148 @@ def draw_pose_landmarks(
         cv2.line(image, (x1, y1), (x2, y2), (255, 0, 0), line_thickness)
 
 
-def run_pose_pipeline(config_path: str) -> None:
+def run_pose_pipeline(video_ctx: VideoContext, cfg: dict) -> None:
     """
     Run pose estimation pipeline.
 
     Args:
         config_path: Path to YAML configuration.
     """
-    setup_logging()
-    log = logging.getLogger("Pose")
 
-    if not Path(config_path).exists():
-        log.error(f"Config path {config_path} does not exist")
-        raise FileNotFoundError(f"Config path {config_path} does not exist")
+    logger.info("Processing Video id: %s", video_ctx.video_id)
 
-    cfg = load_config(config_path)
+    frames = load_frames(
+        video_ctx, 
+        cfg
+    )
 
-    videos = [
-        f for f in os.listdir(cfg["io"]["frames_dir"])
-        if os.path.isdir(os.path.join(cfg["io"]["frames_dir"], f))
-    ]
+    output_dir = (
+        Path(cfg["pose"]["output"]["root_dir"]) /
+        video_ctx.video_id
+    )
 
-    for video in videos:
-        log.info(f"Processing {video}.")
+    output_dir.mkdir(parents=True, exist_ok=True)
 
-        frames = load_frames(Path(cfg["io"]["frames_dir"])/ video, cfg["io"]["frame_glob"])
+    annotated_dir = output_dir / cfg["pose"]["output"]["annotated_dir"]
+    if cfg["pose"]["output"]["write_annotated_frames"]:
+        annotated_dir.mkdir(exist_ok=True)
+    
+    json_file = None
+    if cfg["pose"]["output"]["write_jsonl"]:
+        json_file = open(output_dir / cfg["pose"]["output"]["jsonl_name"], "w", encoding="utf-8")
+    
+    BaseOptions = mp.tasks.BaseOptions
+    PoseLandmarker = mp.tasks.vision.PoseLandmarker
+    PoseLandmarkerOptions = mp.tasks.vision.PoseLandmarkerOptions
+    RunningMode = mp.tasks.vision.RunningMode
 
-        output_dir = Path(cfg["io"]["output_dir"]) / os.path.basename(video)
+    options = PoseLandmarkerOptions(
+        base_options=BaseOptions(
+            model_asset_path=cfg["pose"]["model"]["path"]
+        ),
+        running_mode=RunningMode.VIDEO,
+        num_poses=int(cfg["pose"]["model"]["num_poses"]),
+        min_pose_detection_confidence=float(cfg["pose"]["model"]["confidences"]["detection"]),
+        min_pose_presence_confidence=float(cfg["pose"]["model"]["confidences"]["presence"]),
+        min_tracking_confidence=float(cfg["pose"]["model"]["confidences"]["tracking"])
+    )
 
-        if output_dir.exists():
-            log.info(f"Output directory {os.path.basename(video)} already exists")
-            continue
+    qa = {
+        "video_id": video_ctx.video_id,
+        "fps": video_ctx.fps,
+        "frame_stride": video_ctx.frame_stride,
+        "total_frames_processed": len(frames),
+        "frames_with_pose": 0,
+        "no_pose_frames": 0,
+        "frames_without_pose": [],
+        "max_consecutive_no_pose": 0
+    }
 
-        output_dir.mkdir(parents=True, exist_ok=False)
+    no_pose_count = 0
+    pose_gap = 0
 
-        annotated_dir = output_dir / cfg["io"]["annotated_dir"]
-        if cfg["io"]["write_annotated_frames"]:
-            annotated_dir.mkdir(exist_ok=False)
+    with PoseLandmarker.create_from_options(options) as landmarker:
+        for i, frame_path in enumerate(frames):
+            image = cv2.imread(frame_path)
+            if image is None:
+                logger.warning("Unreadable frames: %s", frame_path)
+                continue
 
-        json_file = None
-        if cfg["io"]["write_json"]:
-            json_file = open(output_dir /  cfg["io"]["json_path"], "w", encoding="utf-8")
-        
-        with open("config.yaml", "r") as f:
-            config = yaml.safe_load(f)
+            mp_img = mp_image_from_bgr(image)
+            ts = compute_timestamp_ms(i, video_ctx)
 
-        if os.path.exists(config["metadata"]["output_path"]):
-            with open(config["metadata"]["output_path"], 'r') as f:
-                try:
-                    data = json.load(f)
-                except json.JSONDecodeError:
-                    data = []
-        else:
-            data = []
+            result = landmarker.detect_for_video(mp_img, ts)
+            has_pose = bool(result.pose_landmarks)
 
-        fps = next(
-            (float(m["fps"]) for m in data if m["video_name"] == os.path.basename(video)),
-            30.0
-        )
+            if not has_pose:
+                qa["no_pose_frames"] += 1
+                qa["frames_without_pose"].append(i)
+                no_pose_count += 1
+                pose_gap += 1
+                qa["max_consecutive_no_pose"] = max(
+                    qa["max_consecutive_no_pose"], pose_gap
+                )
+            
+                if pose_gap >= cfg["pose"]["qa"]["max_pose_gap"]:
+                    raise RuntimeError("QA failed: pose gap exceeded")
+            
+            else:
+                qa["frames_with_pose"] += 1
+                pose_gap = 0
 
+            if json_file:
+                json_file.write(json.dumps({
+                    "schema_version": "pose_landmarks_v1",
+                    "coordinate_system": "mediapipe_normalized_v1",
 
-        start_ms = int(cfg["video"]["start_timestamp_ms"])
+                    "video_id": video_ctx.video_id,
+                    "fps": video_ctx.fps,
+                    "frame_stride": video_ctx.frame_stride,
 
-        BaseOptions = mp.tasks.BaseOptions
-        PoseLandmarker = mp.tasks.vision.PoseLandmarker
-        PoseLandmarkerOptions = mp.tasks.vision.PoseLandmarkerOptions
-        RunningMode = mp.tasks.vision.RunningMode
+                    "frame_index": i,
+                    "timestamp_ms": ts,
 
-        options = PoseLandmarkerOptions(
-            base_options=BaseOptions(
-                model_asset_path=cfg["model"]["task_model_path"]
-            ),
-            running_mode=RunningMode.VIDEO,
-            num_poses = int(cfg["model"]["num_poses"]),
-            min_pose_detection_confidence=float(cfg["model"]["min_pose_detection_confidence"]),
-            min_pose_presence_confidence=float(cfg["model"]["min_pose_presence_confidence"]),
-            min_tracking_confidence=float(cfg["model"]["min_tracking_confidence"]),
-        )
+                    "has_pose": has_pose,
+                    "num_poses": len(result.pose_landmarks or []),
 
-        no_pose_count = 0
+                    "pose_landmarks": [
+                        [
+                            {
+                                "x": lm.x,
+                                "y": lm.y,
+                                "z": lm.z,
+                                "visibility": getattr(lm, "visibility", None)
+                            }
+                            for lm in pose 
+                        ]
+                        for pose in (result.pose_landmarks or [])
+                    ],
+                }) + "\n")
 
-        with PoseLandmarker.create_from_options(options) as landmarker:
-            for i, frame_path in enumerate(frames):
-                image = cv2.imread(frame_path)
-                if image is None:
-                    log.warning("Unreadable frames: %s", frame_path)
-                    continue
+            if cfg["pose"]["output"]["write_annotated_frames"] and has_pose:
+                draw_pose_landmarks(
+                    image,
+                    result.pose_landmarks[0],
+                    cfg["pose"]["overlay"]["visibility_threshold"],
+                    cfg["pose"]["overlay"]["point_radius"],
+                    cfg["pose"]["overlay"]["line_thickness"]
+                )
+                frame_name = Path(frame_path).name
+                cv2.imwrite(str(annotated_dir / frame_name), image)
+    
+    if json_file:
+        json_file.close()
+    
+    qa["no_pose_ratio"] = qa["no_pose_frames"] / qa["total_frames_processed"]
+    qa["qa_passed"] = (
+        qa["no_pose_ratio"] <= cfg["pose"]["qa"]["max_no_pose_ratio"] and
+        qa["max_consecutive_no_pose"] <= cfg["pose"]["qa"]["max_pose_gap"]
+    )
+    with open(output_dir / "qa_report.json", "w") as f:
+        json.dump(qa, f, indent=4)
 
-                mp_img = mp_image_from_bgr(image)
-                ts = compute_timestamp_ms(i, fps, start_ms)
+    ratio = no_pose_count / len(frames)
+    logger.info("Completed. No-pose ratio: %.2f%%", ratio*100)
 
-                result = landmarker.detect_for_video(mp_img, ts)
-                has_pose = bool(result.pose_landmarks)
-
-                if not has_pose:
-                    no_pose_count += 1
-                
-                if json_file:
-                    json_file.write(json.dumps({
-                        "frame_index": i,
-                        "timestamp_ms": ts,
-                        "has_pose": has_pose,
-                        "pose_landmarks": [
-                            [
-                                {
-                                    "x": lm.x,
-                                    "y": lm.y,
-                                    "z": lm.z,
-                                    "visibility": getattr(lm, "visibility", None)
-                                }
-                                for lm in pose
-                            ]
-                            for pose in (result.pose_landmarks or [])
-                        ],
-                    }) + "\n")
-                
-                if cfg["io"]["write_annotated_frames"] and has_pose:
-                    draw_pose_landmarks(
-                        image,
-                        result.pose_landmarks[0],
-                        cfg["overlay"]["visibility_threshold"],
-                        cfg["overlay"]["point_radius"],
-                        cfg["overlay"]["line_thickness"]
-                    )
-                    cv2.imwrite(str(annotated_dir / Path(frame_path).name), image)
-
-        if json_file:
-            json_file.close()
-
-        ratio = no_pose_count / len(frames)
-        log.info("Completed. No-pose ratio: %.2f%%", ratio * 100)
-
-        if ratio > cfg["qa"]["max_no_pose_ratio"]:
-            raise RuntimeError("QA failed: too many frames without pose.")
-
-def main() -> None:
-    run_pose_pipeline('configs/pose.yaml')
-
-# =============================
-# CLI
-# =============================
-
-# def main() -> None:
-#     parser = argparse.ArgumentParser(description="Enterprise Pose Estimation")
-#     parser.add_argument("--config", required=True)
-#     args = parser.parse_args()
-#     run_pose_pipeline(args.config)
-
-
-if __name__ == '__main__':
-    main()
+    if ratio > cfg["pose"]["qa"]["max_no_pose_ratio"]:
+        raise RuntimeError("QA failed: too many frames without pose.")

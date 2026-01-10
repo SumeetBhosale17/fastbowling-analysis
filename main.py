@@ -1,45 +1,40 @@
-import os
-import glob
+from pathlib import Path
 import yaml
-import cv2
 import logging
 
+from core.context_factory import build_video_context
 from run_pose import run_pose_pipeline
 from utils import setup_logging
-from metadata import save_metadata
+from metadata import append_metadata
 from extract_frames import extract_frames
+
+logger = logging.getLogger(__name__)
 
 def main():
     setup_logging()
 
     # Load config
-    with open("config.yaml", "r") as f:
-        config = yaml.safe_load(f)
+    with open("configs/config.yaml", "r", encoding="utf-8") as f:
+        cfg = yaml.safe_load(f)
 
-    video_dir = config["data"]["video_dir"]
-    frame_dir = config["data"]["frame_output_dir"]
-    nth = config["frame_extraction"]["nth_frame"]
-    metadata_path = config["metadata"]["output_path"]
-    formats = config.get("formats", ["mp4", "avi", "mov"])
+    video_dir = Path(cfg["data"]["video_dir"])
+    formats = cfg["data"]["formats"]
 
-    os.makedirs(frame_dir, exist_ok=True)
-    os.makedirs(os.path.dirname(metadata_path), exist_ok=True)
-
-    # Collect videos
-    video_files = []
+    video_paths = []
     for fmt in formats:
-        video_files.extend(glob.glob(os.path.join(video_dir, f"*.{fmt}")))
-
-    logging.info(f"Found {len(video_files)} videos")
-
-    for video in video_files:
-        logging.info(f"Processing: {video}")
-        cap = cv2.VideoCapture(video)
-        save_metadata(cap, video, metadata_path, nth)
-        extract_frames(cap, nth, video, frame_dir)
-        cap.release()
+        video_paths.extend(video_dir.glob(f"*.{fmt}"))
     
-    run_pose_pipeline('configs/pose.yaml')
+    logger.info("Found %d videos", len(video_paths))
 
-if __name__ == "__main__":
+    for video_path in video_paths:
+        logging.info("Processing %s", video_path.name)
+
+        video_ctx = build_video_context(video_path=video_path, cfg=cfg)
+
+        append_metadata(video_ctx, cfg)
+        extract_frames(video_ctx, cfg)
+        run_pose_pipeline(video_ctx, cfg)
+
+
+if __name__ == '__main__':
     main()

@@ -1,38 +1,40 @@
 import json
-import os
-import cv2
 import logging
+import os
 
-def save_metadata(cap, video_name, metadata_path, nth):
-    fps = round(cap.get(cv2.CAP_PROP_FPS))
-    frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-    duration = frame_count / fps if fps > 0 else 0
+from core.video_context import VideoContext
 
-    metadata = {
-        "video_name": os.path.basename(video_name),
-        "fps": fps,
-        "total_frames": frame_count,
-        "duration_seconds": duration,
-        "frame_extraction": {
-            "nth_frame": nth,
-            "frames_extracted": frame_count // nth
+logger = logging.getLogger(__name__)
+
+def build_video_metadata(ctx: VideoContext) -> dict:
+    return {
+        "video_id": ctx.video_id,
+        "video_path": str(ctx.video_path),
+        "fps": ctx.fps,
+        "total_frames": ctx.total_frames,
+        "duration_seconds": ctx.duration_sec,
+        "frame_extration": {
+            "nth_frame": ctx.frame_stride,
+            "frames_extracted": ctx.total_frames // ctx.frame_stride
         }
     }
 
-    if os.path.exists(metadata_path):
-        with open(metadata_path, 'r') as f:
-            try:
-                data = json.load(f)
-            except json.JSONDecodeError:
-                data = []
+def append_metadata(ctx: VideoContext, cfg: dict) -> None:
+    metadata = build_video_metadata(ctx)
+    output_path = cfg["metadata"]["output_path"]
+
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+
+    if os.path.exists(output_path):
+        with open(output_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
     else:
         data = []
-
-    if not any(m["video_name"] == metadata["video_name"] for m in data):
+    
+    if not any(m["video_id"] == metadata["video_id"] for m in data):
         data.append(metadata)
-
-    os.makedirs(os.path.dirname(metadata_path), exist_ok=True)
-    with open(metadata_path, 'w') as f:
+    
+    with open(output_path, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=4)
-
-    logging.info(f"Metadata saved for {metadata['video_name']}")
+    
+    logger.info(f"Metadata saved for video id: {ctx.video_id}, path: {str(ctx.video_path)}")
