@@ -3,15 +3,15 @@ import yaml
 import logging
 
 from core.context_factory import build_video_context
-from run_pose import run_pose_pipeline
 from utils import setup_logging
+setup_logging()
+from run_pose import run_pose_pipeline
 from metadata import append_metadata
 from extract_frames import extract_frames
 
 logger = logging.getLogger(__name__)
 
 def main():
-    setup_logging()
 
     # Load config
     with open("configs/config.yaml", "r", encoding="utf-8") as f:

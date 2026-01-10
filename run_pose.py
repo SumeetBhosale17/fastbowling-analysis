@@ -31,8 +31,6 @@ POSE_CONNECTIONS = [
 ]
 
 logger = logging.getLogger(__name__)
-logging.getLogger("mediapipe").setLevel(logging.ERROR)
-logging.getLogger("tensorflow").setLevel(logging.ERROR)
 
 def load_frames(video_ctx: VideoContext, cfg: dict) -> List[str]:
     """
