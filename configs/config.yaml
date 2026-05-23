@@ -3,18 +3,18 @@ app:
   experiment_name: fast_bowling_analysis
 
 data:
-  video_dir: videos
+  video_dir: data/raw_videos
+  output_dir: data/processed
   formats: [mp4, avi, mov]
 
 video:
+  frame_stride: 1
   start_timestamp_ms: 0
-  enforce_fps: false
-
-frames:
-  output_dir: frames
-  nth_frame: 10
-  image_format: jpg
-  frame_glob: frame_*.jpg
+  # Input acceptance + server-side handling (see CLAUDE.md §3)
+  max_input_height: 1080
+  min_fps_warn: 60
+  min_fps_reject: 30
+  min_bowler_frame_fraction: 0.40
 
 pose:
   model:
@@ -24,22 +24,7 @@ pose:
       detection: 0.6
       presence: 0.6
       tracking: 0.6
-  
-  overlay:
-    visibility_threshold: 0.5
-    point_radius: 3
-    line_thickness: 2
-  
-  output:
-    root_dir: pose_outputs
-    write_jsonl: true
-    jsonl_name: pose_landmarks.jsonl
-    write_annotated_frames: true
-    annotated_dir: annotated
 
   qa:
     max_no_pose_ratio: 0.7
-    max_pose_gap: 10
-
-metadata:
-  output_path: metadata/metadata.json
+    max_pose_gap: 60
