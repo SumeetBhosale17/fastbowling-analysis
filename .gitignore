@@ -1,7 +1,26 @@
+# Local agent / context files (not for the public repo)
+AGENT.md
+CLAUDE.md
+
+# Data — never committed
 videos/
 frames/
-*.mp4
-*.jpg
-__pycache__
-metadata/*.json
+metadata/
 pose_outputs/
+data/
+*.mp4
+*.avi
+*.mov
+*.jpg
+*.png
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+.env
+
+# IDE
+.vscode/
+.idea/

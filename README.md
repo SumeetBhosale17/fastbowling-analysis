@@ -1,133 +1,119 @@
 # Fast Bowling Analysis
 
-A computer vision-based project to analyze fast bowling biomechanics from cricket fast bowling videos.
-This project is structured in multiple phases, starting from raw video ingestion to pose-based and temporal biomechanical analysis.
+Computer-vision pipeline for fast-bowling biomechanics from cricket footage. Long-term goal: a web platform where users upload a delivery and get back per-frame pose, segmented bowling phases, and biomechanical metrics.
+
+This iteration (**v0.2**) is the foundation only: a clean, runnable pipeline that turns a video into a compact landmarks array on disk. No event detection, no metrics, no UI yet.
 
 ---
 
-## Phase 0 - Video Ingestion & Frame Extraction
+## What v0.2 does
 
-### Objective
-Phase 0 prepares raw bowling videos for downstream analysis by:
-- Discovering videos in batch
-- Extracting container-level metadata
-- Sampling frames at a configurable rate
-- Persisting metadata for reproduciblility
+For each video in `data/raw_videos/`:
 
-This phase **does not perform any pose estimation or biomechanics**.
-Its sole purpose is to create a clean, reproducible data foundation.
+1. Builds a `VideoContext` (immutable: id, path, fps, frame count, duration, stride, start timestamp).
+2. Writes `metadata.json` to the per-video output directory.
+3. **Streams** frames from the video file — no on-disk frame cache — and runs MediaPipe `PoseLandmarker` in `VIDEO` mode with monotonic timestamps.
+4. Writes a compact NumPy landmarks array, a sidecar JSON for per-frame metadata, and a QA report.
+
+Per-video outputs land in `data/processed/<video_id>/`:
+
+```
+data/processed/<video_id>/
+├── metadata.json          # video-level: fps, total_frames, duration, ...
+├── landmarks.npy          # float32 array, shape [T, 33, 4]  (x, y, z, visibility)
+├── landmarks_meta.json    # per-frame timestamps_ms, has_pose mask, source_frame_indices
+└── qa_report.json         # coverage stats + qa_passed flag
+```
+
+`video_id` is `sha1(str(video_path))[:12]` — moving the source file changes the id.
 
 ---
 
-## What Phase 0 does
+## Setup
 
-For each input video:
-1. Reads video metadata (FPS, frame count, duration)
-2. Saves metadata to structured JSON file
-3. Extracts every *N*th frame (configurable)
-4. Stores frames in a deterministic directory structure
+```bash
+python -m venv .venv
+.venv\Scripts\activate          # Windows; use `source .venv/bin/activate` on macOS/Linux
+pip install -r requirements.txt
+```
+
+Place the MediaPipe pose model at `models/pose_landmarker_full.task` (already in repo). Drop any `.mp4` / `.avi` / `.mov` files into `data/raw_videos/`.
+
+## Run
+
+From the repo root:
+
+```bash
+python main.py
+```
+
+That's it. `main.py` is a thin wrapper around `src.pipeline.main`.
 
 ---
 
-```text
+## Configuration
+
+Everything is in `configs/config.yaml`. The code reads no hardcoded paths or thresholds. Notable knobs:
+
+- `video.frame_stride` — default `1` (process every frame). Increase only if pose inference is too slow; raising this risks missing the release frame.
+- `pose.model.confidences.*` — detection / presence / tracking thresholds passed straight to MediaPipe.
+- `pose.qa.max_no_pose_ratio` / `max_pose_gap` — the pipeline raises `RuntimeError` if either is exceeded.
+
+---
+
+## Project layout
+
+```
 fast-bowling-analysis/
-│
-├── main.py                 # Pipeline entry point
-├── config.yaml             # All configurable parameters
-├── extract_frames.py       # Frame extraction logic
-├── metadata.py             # Metadata extraction & persistence
-├── utils.py                # Shared utilities (logging, etc.)
-│
+├── main.py                       # entrypoint (thin wrapper)
+├── configs/
+│   └── config.yaml               # single source of truth for parameters
+├── src/
+│   ├── pipeline.py               # orchestration
+│   ├── core/
+│   │   ├── video_context.py      # VideoContext dataclass (frozen)
+│   │   └── context_factory.py    # build_video_context()
+│   ├── video/
+│   │   ├── reader.py             # streaming frame iterator
+│   │   └── metadata.py           # write_metadata()
+│   ├── pose/
+│   │   └── estimator.py          # MediaPipe pose, writes landmarks.npy
+│   └── utils/
+│       └── logging.py
+├── data/
+│   ├── raw_videos/               # input videos (gitignored)
+│   ├── processed/<video_id>/     # outputs (gitignored)
+│   └── schemas/                  # JSON schemas
+├── docs/
+│   ├── coordinate_system.md
+│   └── data_schema.md
+├── models/
+│   └── pose_landmarker_full.task
 ├── scripts/
-│   └── run_pipeline.sh     # Reproducible execution script
-│
-├── videos/                 # Input videos (ignored by git)
-├── frames/                 # Extracted frames (ignored by git)
-│   └── <video_name>/
-│       └── frame_<index>.jpg
-│
-├── metadata/
-│   └── metadata.json       # Generated metadata (ignored by git)
-│
+│   └── run_pipeline.sh           # `python main.py`
 └── README.md
 ```
 
---- 
+---
 
-## Configuration (`config.yaml`)
+## Roadmap
 
-All pipeline behavior is controlled via `config.yaml`. \
-The code does not contain hardcoded paths or parameters.
-
-Key configuration sections:
-- `data.video_dir` - directory containing input videos
-- `data.frame_output_dir` - where the extracted frames are stored
-- `frame_extraction.nth` - sampling rate
-- `metadata.output_path` - metadata storage location
-- `formats` - supported video formats
-
-This design enables reproducibility and easy experimentation without modifying source code.
+| Phase | Goal | Status |
+|------|------|--------|
+| Phase 0 | Video ingest + metadata | done |
+| Phase 1 | Pose estimation + landmarks.npy | done (v0.2) |
+| Phase 2 | Motion signals + filters (joint angles, COM, velocities) | planned |
+| Phase 3 | Event detection (BFC, FFC, release, jump initiation) | planned |
+| Phase 4 | Per-delivery metrics (trunk angle, hip-shoulder separation, …) | planned |
+| Phase 5 | Visualization (annotated video + signal charts) | planned |
+| Phase 6 | FastAPI service + worker queue | planned |
+| Phase 7 | Frontend (upload + results) | planned |
 
 ---
 
-## How to Run Phase 0
+## Known limitations
 
-From the project root:
-
-```bash
-chmod +x scripts/run_pipeline.sh
-./scripts/run_pipeline.sh
-```
-
-This pipeline will:
-- Discover all supported videos in `videos/`
-- Extract metadata and frames
-- Save outputs to `frames/` and `metadata/`
-
----
-
-## Outputs
-
-### Frames
-
-Extracted frames are stored as:
-
-```text
-frames/<video_name>/frame_<frame_index>.jpg
-```
-
-### Metadata
-
-Metadata is stored in JSON format:
-
-```json
-{
-    "video_name": "video.mp4",
-    "fps": 29,
-    "total_frames": 684,
-    "duration_seconds": 23.586206896551722,
-    "frame_extraction": {
-        "nth_frame": 10,
-        "frames_extracted": 68
-    }
-}
-```
-
-This metadata is required for:
-- Temporal alignment
-- Velocity Calculations
-- Reproducibility across experiments
-
----
-
-### Git Tracking Policy
-
-The following directories are intentionally excluded from version control:
-- `videos/`
-- `frames/`
-- `metadata/*.json`
-
-Only source code and configuration are tracked. \
-This keeps the repository lightweight and reproducible.
-
----
+- One labeled video so far. No ground truth for events or metrics yet — event detection (Phase 3) is blocked on this.
+- `video_id` is path-based; renaming or moving a video creates a new id.
+- MediaPipe pose has known difficulty with motion blur, self-occlusion at release, and partial-body frames. Treat low `visibility` landmarks as missing.
+- Annotated-video output and visualization snapshots are intentionally deferred to Phase 5.

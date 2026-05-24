@@ -10,11 +10,13 @@ data:
 video:
   frame_stride: 1
   start_timestamp_ms: 0
-  # Input acceptance + server-side handling (see CLAUDE.md §3)
   max_input_height: 1080
   min_fps_warn: 60
   min_fps_reject: 30
-  min_bowler_frame_fraction: 0.40
+  min_bowler_frame_fraction_warn: 0.40
+  min_bowler_frame_fraction_reject: 0.20
+  min_aspect_ratio: 1.0
+  max_background_pan_px_per_frame: 5.0
 
 pose:
   model:
