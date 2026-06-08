@@ -3,7 +3,7 @@ from pathlib import Path
 
 import cv2
 
-from src.core.video_context import VideoContext
+from pacelab.core.video_context import VideoContext
 
 
 def generate_video_id(video_path: Path) -> str:

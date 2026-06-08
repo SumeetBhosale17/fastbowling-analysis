@@ -2,7 +2,7 @@ import json
 import logging
 from pathlib import Path
 
-from src.core.video_context import VideoContext
+from pacelab.core.video_context import VideoContext
 
 logger = logging.getLogger(__name__)
 

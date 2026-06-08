@@ -6,11 +6,11 @@ from typing import List
 
 import yaml
 
-from src.core.context_factory import build_video_context
-from src.pose.estimator import run_pose
-from src.utils.logging import setup_logging
-from src.video.metadata import write_metadata
-from src.video.reader import iter_video_frames
+from pacelab.core.context_factory import build_video_context
+from pacelab.pose.estimator import run_pose
+from pacelab.utils.logging import setup_logging
+from pacelab.video.metadata import write_metadata
+from pacelab.video.reader import iter_video_frames
 
 logger = logging.getLogger(__name__)
 

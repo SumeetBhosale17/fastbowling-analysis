@@ -1,2 +1,2 @@
 #!/bin/bash
-python main.py
+PYTHONPATH=backend/src python -m pacelab.pipeline

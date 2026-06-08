@@ -1,4 +1,4 @@
-from src.pipeline import main
+from pacelab.pipeline import main
 
 if __name__ == "__main__":
     main()

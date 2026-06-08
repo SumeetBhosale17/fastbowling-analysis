@@ -41,13 +41,13 @@ Place the MediaPipe pose model at `models/pose_landmarker_full.task` (already in
 
 ## Run
 
-From the repo root:
+From the repo root. The package isn't installed as a distribution yet, so put it on the import path:
 
 ```bash
-python main.py
+PYTHONPATH=backend/src python -m pacelab.pipeline
 ```
 
-That's it. `main.py` is a thin wrapper around `src.pipeline.main`.
+`pacelab.pipeline.main` is the entry point; `main.py` at the repo root is a thin wrapper around it.
 
 ---
 
@@ -63,34 +63,34 @@ Everything is in `configs/config.yaml`. The code reads no hardcoded paths or thr
 
 ## Project layout
 
-```
+```text
 fast-bowling-analysis/
 ├── main.py                       # entrypoint (thin wrapper)
 ├── configs/
 │   └── config.yaml               # single source of truth for parameters
-├── src/
-│   ├── pipeline.py               # orchestration
-│   ├── core/
-│   │   ├── video_context.py      # VideoContext dataclass (frozen)
-│   │   └── context_factory.py    # build_video_context()
-│   ├── video/
-│   │   ├── reader.py             # streaming frame iterator
-│   │   └── metadata.py           # write_metadata()
-│   ├── pose/
-│   │   └── estimator.py          # MediaPipe pose, writes landmarks.npy
-│   └── utils/
-│       └── logging.py
+├── backend/
+│   └── src/pacelab/
+│       ├── pipeline.py           # orchestration
+│       ├── core/
+│       │   ├── video_context.py  # VideoContext dataclass (frozen)
+│       │   └── context_factory.py # build_video_context()
+│       ├── video/
+│       │   ├── reader.py         # streaming frame iterator
+│       │   └── metadata.py       # write_metadata()
+│       ├── pose/
+│       │   └── estimator.py      # MediaPipe pose, writes landmarks.npy
+│       └── utils/
+│           └── logging.py
 ├── data/
 │   ├── raw_videos/               # input videos (gitignored)
-│   ├── processed/<video_id>/     # outputs (gitignored)
-│   └── schemas/                  # JSON schemas
+│   └── processed/<video_id>/     # outputs (gitignored)
 ├── docs/
 │   ├── coordinate_system.md
 │   └── data_schema.md
 ├── models/
 │   └── pose_landmarker_full.task
 ├── scripts/
-│   └── run_pipeline.sh           # `python main.py`
+│   └── run_pipeline.sh           # PYTHONPATH=backend/src python -m pacelab.pipeline
 └── README.md
 ```
 

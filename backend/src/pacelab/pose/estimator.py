@@ -9,7 +9,7 @@ import cv2
 import mediapipe as mp
 import numpy as np
 
-from src.core.video_context import VideoContext
+from pacelab.core.video_context import VideoContext
 
 logger = logging.getLogger(__name__)
 
