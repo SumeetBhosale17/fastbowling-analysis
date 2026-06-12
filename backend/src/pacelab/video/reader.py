@@ -1,7 +1,7 @@
 from __future__ import annotations
 
+from collections.abc import Iterator
 from pathlib import Path
-from typing import Iterator, Tuple
 
 import cv2
 import numpy as np
@@ -10,7 +10,7 @@ import numpy as np
 def iter_video_frames(
     video_path: Path,
     frame_stride: int = 1,
-) -> Iterator[Tuple[int, np.ndarray]]:
+) -> Iterator[tuple[int, np.ndarray]]:
     """Yield (source_frame_index, bgr_frame) for every `frame_stride`-th frame.
 
     `source_frame_index` is the index in the ORIGINAL video, not the sampled

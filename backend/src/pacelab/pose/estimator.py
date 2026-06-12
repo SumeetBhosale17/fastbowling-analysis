@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import json
 import logging
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Iterable, Tuple
 
 import cv2
 import mediapipe as mp
@@ -22,8 +22,7 @@ COORDINATE_SYSTEM = "mediapipe_normalized_v1"
 
 def _timestamp_ms(sampled_idx: int, ctx: VideoContext) -> int:
     return int(
-        ctx.start_timestamp_ms
-        + (sampled_idx * ctx.frame_stride * 1000.0 / ctx.fps)
+        ctx.start_timestamp_ms + (sampled_idx * ctx.frame_stride * 1000.0 / ctx.fps)
     )
 
 
@@ -47,7 +46,7 @@ def _build_landmarker(settings: Settings):
 
 def run_pose(
     ctx: VideoContext,
-    frames: Iterable[Tuple[int, np.ndarray]],
+    frames: Iterable[tuple[int, np.ndarray]],
     settings: Settings,
 ) -> Path:
     """Run MediaPipe pose estimation on a stream of (source_frame_index, bgr) pairs.
@@ -84,10 +83,7 @@ def run_pose(
             if has_pose:
                 lm = result.pose_landmarks[0]
                 arr = np.array(
-                    [
-                        [p.x, p.y, p.z, getattr(p, "visibility", 0.0)]
-                        for p in lm
-                    ],
+                    [[p.x, p.y, p.z, getattr(p, "visibility", 0.0)] for p in lm],
                     dtype=np.float32,
                 )
                 current_gap = 0
@@ -99,9 +95,7 @@ def run_pose(
                 )
                 no_pose_indices.append(sampled_idx)
                 current_gap += 1
-                max_consecutive_no_pose = max(
-                    max_consecutive_no_pose, current_gap
-                )
+                max_consecutive_no_pose = max(max_consecutive_no_pose, current_gap)
 
             landmarks_buf.append(arr)
             has_pose_mask.append(has_pose)
@@ -152,7 +146,10 @@ def run_pose(
 
     logger.info(
         "Pose done for %s: %d frames, no_pose_ratio=%.2f%%, max_gap=%d",
-        ctx.video_id, total, no_pose_ratio * 100, max_consecutive_no_pose,
+        ctx.video_id,
+        total,
+        no_pose_ratio * 100,
+        max_consecutive_no_pose,
     )
 
     if not qa["qa_passed"]:
