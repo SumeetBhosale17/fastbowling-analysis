@@ -31,20 +31,23 @@ data/processed/<video_id>/
 
 ## Setup
 
+Install [uv](https://docs.astral.sh/uv/), then from the repo root:
+
+
 ```bash
-python -m venv .venv
-.venv\Scripts\activate          # Windows; use `source .venv/bin/activate` on macOS/Linux
-pip install -r requirements.txt
+uv sync
 ```
+
+This creates `.venv/`, installs all locked dependencies, and installs the `pacelab` package editable. 
 
 Place the MediaPipe pose model at `models/pose_landmarker_full.task` (already in repo). Drop any `.mp4` / `.avi` / `.mov` files into `data/raw_videos/`.
 
 ## Run
 
-From the repo root. The package isn't installed as a distribution yet, so put it on the import path:
+From the repo root:
 
 ```bash
-PYTHONPATH=backend/src python -m pacelab.pipeline
+uv run python -m pacelab.pipeline
 ```
 
 `pacelab.pipeline.main` is the entry point; `main.py` at the repo root is a thin wrapper around it.
@@ -66,6 +69,8 @@ Everything is in `configs/config.yaml`. The code reads no hardcoded paths or thr
 ```text
 fast-bowling-analysis/
 ├── main.py                       # entrypoint (thin wrapper)
+├── pyproject.toml                # project metadata + deps + build config
+├── uv.lock                       # exact resolved deps (committed)
 ├── configs/
 │   └── config.yaml               # single source of truth for parameters
 ├── backend/
