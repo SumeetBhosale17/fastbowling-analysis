@@ -1,2 +1,2 @@
 #!/bin/bash
-PYTHONPATH=backend/src python -m pacelab.pipeline
+uv run python -m pacelab.pipeline
