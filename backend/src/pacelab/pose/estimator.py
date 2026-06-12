@@ -9,6 +9,7 @@ import cv2
 import mediapipe as mp
 import numpy as np
 
+from pacelab.core.settings import Settings
 from pacelab.core.video_context import VideoContext
 
 logger = logging.getLogger(__name__)
@@ -26,25 +27,20 @@ def _timestamp_ms(sampled_idx: int, ctx: VideoContext) -> int:
     )
 
 
-def _build_landmarker(cfg: dict):
+def _build_landmarker(settings: Settings):
     BaseOptions = mp.tasks.BaseOptions
     PoseLandmarker = mp.tasks.vision.PoseLandmarker
     PoseLandmarkerOptions = mp.tasks.vision.PoseLandmarkerOptions
     RunningMode = mp.tasks.vision.RunningMode
 
+    pose_model = settings.pose.model
     options = PoseLandmarkerOptions(
-        base_options=BaseOptions(model_asset_path=cfg["pose"]["model"]["path"]),
+        base_options=BaseOptions(model_asset_path=str(pose_model.path)),
         running_mode=RunningMode.VIDEO,
-        num_poses=int(cfg["pose"]["model"]["num_poses"]),
-        min_pose_detection_confidence=float(
-            cfg["pose"]["model"]["confidences"]["detection"]
-        ),
-        min_pose_presence_confidence=float(
-            cfg["pose"]["model"]["confidences"]["presence"]
-        ),
-        min_tracking_confidence=float(
-            cfg["pose"]["model"]["confidences"]["tracking"]
-        ),
+        num_poses=pose_model.num_poses,
+        min_pose_detection_confidence=pose_model.confidences.detection,
+        min_pose_presence_confidence=pose_model.confidences.presence,
+        min_tracking_confidence=pose_model.confidences.tracking,
     )
     return PoseLandmarker.create_from_options(options)
 
@@ -52,7 +48,7 @@ def _build_landmarker(cfg: dict):
 def run_pose(
     ctx: VideoContext,
     frames: Iterable[Tuple[int, np.ndarray]],
-    cfg: dict,
+    settings: Settings,
 ) -> Path:
     """Run MediaPipe pose estimation on a stream of (source_frame_index, bgr) pairs.
 
@@ -63,7 +59,7 @@ def run_pose(
                              source_frame_indices.
       - qa_report.json       coverage statistics + pass/fail.
     """
-    out_dir = Path(cfg["data"]["output_dir"]) / ctx.video_id
+    out_dir = settings.data.output_dir / ctx.video_id
     out_dir.mkdir(parents=True, exist_ok=True)
 
     landmarks_buf: list[np.ndarray] = []
@@ -72,11 +68,11 @@ def run_pose(
     source_frame_indices: list[int] = []
     no_pose_indices: list[int] = []
 
-    max_gap = int(cfg["pose"]["qa"]["max_pose_gap"])
+    max_gap = settings.pose.qa.max_pose_gap
     current_gap = 0
     max_consecutive_no_pose = 0
 
-    with _build_landmarker(cfg) as landmarker:
+    with _build_landmarker(settings) as landmarker:
         for sampled_idx, (source_idx, image) in enumerate(frames):
             rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
             mp_img = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb)
@@ -147,7 +143,7 @@ def run_pose(
         "max_consecutive_no_pose": max_consecutive_no_pose,
         "no_pose_ratio": no_pose_ratio,
         "qa_passed": (
-            no_pose_ratio <= cfg["pose"]["qa"]["max_no_pose_ratio"]
+            no_pose_ratio <= settings.pose.qa.max_no_pose_ratio
             and max_consecutive_no_pose <= max_gap
         ),
     }
@@ -165,7 +161,7 @@ def run_pose(
             "max_consecutive_no_pose=%d (max %d). Outputs written for inspection.",
             ctx.video_id,
             no_pose_ratio * 100,
-            cfg["pose"]["qa"]["max_no_pose_ratio"] * 100,
+            settings.pose.qa.max_no_pose_ratio * 100,
             max_consecutive_no_pose,
             max_gap,
         )

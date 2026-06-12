@@ -4,9 +4,8 @@ import logging
 from pathlib import Path
 from typing import List
 
-import yaml
-
 from pacelab.core.context_factory import build_video_context
+from pacelab.core.settings import Settings, load_settings
 from pacelab.pose.estimator import run_pose
 from pacelab.utils.logging import setup_logging
 from pacelab.video.metadata import write_metadata
@@ -15,35 +14,28 @@ from pacelab.video.reader import iter_video_frames
 logger = logging.getLogger(__name__)
 
 
-def load_config(path: str | Path = "configs/config.yaml") -> dict:
-    with open(path, "r", encoding="utf-8") as f:
-        return yaml.safe_load(f)
-
-
-def discover_videos(cfg: dict) -> List[Path]:
-    video_dir = Path(cfg["data"]["video_dir"])
-    formats = cfg["data"]["formats"]
+def discover_videos(settings: Settings) -> List[Path]:
     paths: List[Path] = []
-    for fmt in formats:
-        paths.extend(video_dir.glob(f"*.{fmt}"))
+    for fmt in settings.data.formats:
+        paths.extend(settings.data.video_dir.glob(f"*.{fmt}"))
     return sorted(paths)
 
 
-def process_video(video_path: Path, cfg: dict) -> Path:
+def process_video(video_path: Path, settings: Settings) -> Path:
     logger.info("Processing %s", video_path.name)
-    ctx = build_video_context(video_path, cfg)
-    write_metadata(ctx, cfg)
+    ctx = build_video_context(video_path, settings)
+    write_metadata(ctx, settings)
     frames = iter_video_frames(ctx.video_path, ctx.frame_stride)
-    return run_pose(ctx, frames, cfg)
+    return run_pose(ctx, frames, settings)
 
 
 def main() -> None:
     setup_logging()
-    cfg = load_config()
-    videos = discover_videos(cfg)
+    settings = load_settings()
+    videos = discover_videos(settings)
     logger.info("Found %d video(s)", len(videos))
     for video_path in videos:
-        process_video(video_path, cfg)
+        process_video(video_path, settings)
 
 
 if __name__ == "__main__":
