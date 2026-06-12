@@ -2,6 +2,7 @@ import json
 import logging
 from pathlib import Path
 
+from pacelab.core.settings import Settings
 from pacelab.core.video_context import VideoContext
 
 logger = logging.getLogger(__name__)
@@ -21,9 +22,9 @@ def build_video_metadata(ctx: VideoContext) -> dict:
     }
 
 
-def write_metadata(ctx: VideoContext, cfg: dict) -> Path:
+def write_metadata(ctx: VideoContext, settings: Settings) -> Path:
     metadata = build_video_metadata(ctx)
-    output_dir = Path(cfg["data"]["output_dir"]) / ctx.video_id
+    output_dir = settings.data.output_dir / ctx.video_id
     output_dir.mkdir(parents=True, exist_ok=True)
     output_path = output_dir / "metadata.json"
 
