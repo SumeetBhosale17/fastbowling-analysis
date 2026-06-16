@@ -1,0 +1,36 @@
+name: CI
+on:
+  pull_request:
+  push:
+    branches: [main, v0.2]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    name: Quality (ruff + pyright)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+      
+      - name: Install Python 3.13
+        run: uv python install 3.13
+
+      - name: Sync dependencies (frozen)
+        run: uv sync --frozen
+
+      - name: ruff checkout
+        run: uv run ruff check
+
+      - name: ruff format check
+        run: uv run ruff format --check
+      
+      - name: pyright
+        run: uv run pyright
