@@ -2,7 +2,7 @@ name: CI
 on:
   pull_request:
   push:
-    branches: [main, v0.2]
+    branches: [main]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -26,7 +26,7 @@ jobs:
       - name: Sync dependencies (frozen)
         run: uv sync --frozen
 
-      - name: ruff checkout
+      - name: ruff check
         run: uv run ruff check
 
       - name: ruff format check
