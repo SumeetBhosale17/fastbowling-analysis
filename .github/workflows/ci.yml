@@ -34,3 +34,9 @@ jobs:
       
       - name: pyright
         run: uv run pyright
+
+      - name: Install system libs for OpenCV and MediaPipe
+        run: sudo apt-get update && sudo apt-get install -y libgl1 libglib2.0-0 libegl1 libgles2
+
+      - name: pytest
+        run: uv run pytest
