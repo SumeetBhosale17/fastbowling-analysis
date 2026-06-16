@@ -1,2 +1,2 @@
 #!/bin/bash
-python main.py
+uv run python -m pacelab.pipeline
