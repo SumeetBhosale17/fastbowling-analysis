@@ -39,5 +39,9 @@ venv = ".venv"
 dev = [
     "pre-commit>=4.6.0",
     "pyright>=1.1.410",
+    "pytest>=9.1.0",
     "ruff>=0.15.17",
 ]
+
+[tool.pytest.ini_options]
+testpaths = ["backend/tests"]
