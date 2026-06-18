@@ -26,6 +26,25 @@ def extract_xy(landmarks: np.ndarray) -> np.ndarray:
     return landmarks[:, :, _XY].astype(np.float64)
 
 
+def mask_low_visibility(
+    landmarks: np.ndarray,
+    threshold: float,
+) -> np.ndarray:
+    """Return a copy of [T, 33, 4] landmarks with x, y, z set to NaN wherever
+    visibility < threshold, so low-confidence landmarks are treated as missing
+
+    The visibility channel itself is preserved. Frames with no pose are already
+    NaN (their visibility is NaN, which compares False), so they pass through
+    unchanged.
+    """
+    if landmarks.ndim != 3 or landmarks.shape[2] != 4:
+        raise ValueError(f"expected [T, 33, 4] landmarks, got shape {landmarks.shape}")
+    out = landmarks.copy()
+    low = out[:, :, 3] < threshold  # NaN visibility compares False -> left as NaN
+    out[low, :3] = np.nan
+    return out
+
+
 def _short_interior_gap_mask(present: np.ndarray, max_gap: int) -> np.ndarray:
     """Mask over time, True where a frame is trustworthy: either pose was
     present, or it sits in an interior NaN run no longer than max_gap (so a
