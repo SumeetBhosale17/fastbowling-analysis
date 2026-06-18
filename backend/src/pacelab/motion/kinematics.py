@@ -12,9 +12,7 @@ from __future__ import annotations
 
 import numpy as np
 
-# MediaPipe pose hip landmarks, used for the v1 centre-of-mass approximation.
-LEFT_HIP = 23
-RIGHT_HIP = 24
+from pacelab.core.landmarks import PoseLandmark
 
 
 def angle_at(
@@ -41,8 +39,10 @@ def angle_at(
 def com(positions: np.ndarray) -> np.ndarray:
     """Approximate centre of mass per frame as the hip midpoint.
 
-    positions: [T, 33, 2]. Returns [T, 2]. NaN at frames where hip is
+    positions: [T, 33, 2]. Returns [T, 2]. NaN at frames where either hip is
     missing. This is a v1 approximation; a segment-weighted model is deferred
     until a metric needs the extra precision.
     """
-    return (positions[:, LEFT_HIP, :] + positions[:, RIGHT_HIP, :]) / 2.0
+    left = positions[:, PoseLandmark.LEFT_HIP, :]
+    right = positions[:, PoseLandmark.RIGHT_HIP, :]
+    return (left + right) / 2.0
