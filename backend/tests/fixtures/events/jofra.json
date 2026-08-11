@@ -20,7 +20,7 @@
     "release": {
       "source_frame": 319,
       "confidence": "high",
-      "tolerance_frames": 1
+      "tolerance_frames": 2
     },
     "arm_deceleration_complete": {
       "source_frame": 332,

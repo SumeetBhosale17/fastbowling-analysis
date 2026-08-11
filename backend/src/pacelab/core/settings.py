@@ -88,6 +88,7 @@ class FootContactSettings(_StrictBase):
 
 
 class ReleaseSettings(_StrictBase):
+    degrees_past_vertical: float = Field(gt=0, lt=90)
     max_frames_after_ffc: int = Field(ge=1)
 
 

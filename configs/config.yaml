@@ -55,10 +55,18 @@ events:
     min_stationary_frames: 3
     min_separation_frames: 5 # closer plants are one contact, not two
 
-  # Release: the bowling wrist passes its highest point as the arm reaches
-  # vertical. The ball leaves fractionally after that; the label tolerance
-  # absorbs the offset rather than a fudge factor here.
+  # Release: the bowling arm continues past vertical before the ball leaves,
+  # so the wrist apex is systematically early - 2 frames on the reference
+  # clip. Detecting a fixed angle past vertical instead removes that bias and,
+  # unlike a frame offset, does not change meaning with frame rate. Sign of
+  # the sweep depends on which way the bowler faces; the detector normalises
+  # it, this threshold is a magnitude.
+  #
+  # 11 degrees is the centre of the 8-14 degree band that all resolve to the
+  # labelled release frame on the one clip we have. Revisit once there are
+  # more - a single clip cannot pin this down.
   release:
+    degrees_past_vertical: 11.0
     max_frames_after_ffc: 60
 
   # Arm deceleration complete: bowling wrist reaches its lowest point as the
