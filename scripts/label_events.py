@@ -10,14 +10,22 @@ are biased toward whatever the detector happened to find.
 Usage:
     uv run python scripts/label_events.py data/raw_videos/jofra.mp4
 
+Re-running against an existing label file reloads its marks, so revising one
+event does not mean re-marking the others.
+
 Keys:
     a / d      step back / forward one frame
     A / D      step back / forward ten frames
-    1 2 3 4    mark BFC / FFC / release / follow-through at current frame
-    c          cycle confidence of the most recent mark (high/medium/low)
-    x          clear the most recent mark
+    [ / ]      jump to previous / next marked frame
+    1 2 3 4 5  mark BFC / FFC / release / arm-deceleration-complete /
+               follow-through at the current frame
+    c          cycle confidence of the mark on this frame (high/medium/low)
+    x          clear the mark on this frame
     w          write labels and exit
     q          quit without saving
+
+Leaving an event unmarked writes it as null - the honest record for an event
+the footage does not contain, which the tests skip rather than assert.
 """
 
 from __future__ import annotations
@@ -31,20 +39,35 @@ from pathlib import Path
 import cv2
 import numpy as np
 
-SCHEMA_VERSION = "event_labels_v1"
-EVENT_ORDER = ("bfc", "ffc", "release", "follow_through")
+SCHEMA_VERSION = "event_labels_v2"
+EVENT_ORDER = (
+    "bfc",
+    "ffc",
+    "release",
+    "arm_deceleration_complete",
+    "follow_through",
+)
 _KEY_TO_EVENT = {
     ord("1"): "bfc",
     ord("2"): "ffc",
     ord("3"): "release",
-    ord("4"): "follow_through",
+    ord("4"): "arm_deceleration_complete",
+    ord("5"): "follow_through",
 }
 
 # Tolerance the test allows for each event, in frames. Not uniform: a foot
-# plant is a crisp physical instant, whereas "follow-through has ended" is a
-# judgement call even for a human labeller. Encoding that here keeps the test
-# honest instead of pretending all four are equally observable.
-_DEFAULT_TOLERANCE = {"bfc": 2, "ffc": 2, "release": 1, "follow_through": 5}
+# plant is a crisp physical instant, whereas "the arm has stopped" and "the
+# action has ended" are judgement calls even for a human labeller. Encoding
+# that here keeps the test honest instead of pretending all five are equally
+# observable. Turning-point events get the widest band because position
+# barely changes across the frames either side of an extremum.
+_DEFAULT_TOLERANCE = {
+    "bfc": 2,
+    "ffc": 2,
+    "release": 1,
+    "arm_deceleration_complete": 3,
+    "follow_through": 5,
+}
 _CONFIDENCES = ("high", "medium", "low")
 
 
@@ -87,11 +110,11 @@ def _render(
     for name in EVENT_ORDER:
         mark = marks.get(name)
         if mark is None:
-            lines.append(f"{name:16s}   --")
+            lines.append(f"{name:26s}   --")
         else:
             here = "  <<" if mark["source_frame"] == idx else ""
             lines.append(
-                f"{name:16s}    {mark['source_frame']:5d}  {mark['confidence']}{here}"
+                f"{name:26s}    {mark['source_frame']:5d}  {mark['confidence']}{here}"
             )
 
     for i, line in enumerate(lines):
@@ -112,6 +135,31 @@ def _render(
     return out
 
 
+def _load_existing(path: Path) -> dict[str, dict]:
+    """Reload marks from a previous session. Unmarked (null) events and any
+    key no longer in EVENT_ORDER are dropped."""
+    if not path.exists():
+        return {}
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    return {
+        name: dict(event)
+        for name, event in payload.get("events", {}).items()
+        if event is not None and name in EVENT_ORDER
+    }
+
+
+def _marked_at(marks: dict[str, dict], idx: int) -> list[str]:
+    return [n for n in EVENT_ORDER if n in marks and marks[n]["source_frame"] == idx]
+
+
+def _nearest_mark(marks: dict[str, dict], idx: int, *, forward: bool) -> int | None:
+    frames = sorted({m["source_frame"] for m in marks.values()})
+    candidates = [f for f in frames if (f > idx if forward else f < idx)]
+    if not candidates:
+        return None
+    return candidates[0] if forward else candidates[-1]
+
+
 def _validate_order(marks: dict[str, dict]) -> str | None:
     """Delivery events are strictly ordered in time. Violations are labelling
     slips, not exotic deliveries, so refuse to save rather than persist them."""
@@ -129,8 +177,9 @@ def label(video_path: Path, out_path: Path, max_height: int) -> int:
 
     total = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
     fps = cap.get(cv2.CAP_PROP_FPS)
-    marks: dict[str, dict] = {}
-    history: list[str] = []
+    marks = _load_existing(out_path)
+    if marks:
+        print(f"resuming from {out_path}: {len(marks)} event(s) already marked")
     idx, frame = 0, None
     dirty = True
 
@@ -156,16 +205,32 @@ def label(video_path: Path, out_path: Path, max_height: int) -> int:
                 step = {ord("a"): -1, ord("d"): 1, ord("A"): -10, ord("D"): 10}[key]
                 new = min(max(idx + step, 0), total - 1)
                 idx, dirty = new, new != idx
+            elif key in (ord("["), ord("]")):
+                target = _nearest_mark(marks, idx, forward=key == ord("]"))
+                if target is not None:
+                    idx, dirty = target, True
             elif key in _KEY_TO_EVENT:
+                # Re-marking an event keeps whatever confidence and tolerance
+                # it already carried; only its frame moves.
                 name = _KEY_TO_EVENT[key]
-                marks[name] = {"source_frame": idx, "confidence": "high"}
-                history = [n for n in history if n != name] + [name]
-            elif key == ord("c") and history:
-                mark = marks[history[-1]]
-                nxt = _CONFIDENCES.index(mark["confidence"]) + 1
-                mark["confidence"] = _CONFIDENCES[nxt % len(_CONFIDENCES)]
-            elif key == ord("x") and history:
-                del marks[history.pop()]
+                previous = marks.get(name, {})
+                marks[name] = {
+                    "source_frame": idx,
+                    "confidence": previous.get("confidence", "high"),
+                    "tolerance_frames": previous.get(
+                        "tolerance_frames", _DEFAULT_TOLERANCE[name]
+                    ),
+                }
+            elif key == ord("c"):
+                # Operates on the mark under the cursor rather than on edit
+                # history, so a reloaded mark is editable without re-marking.
+                for name in _marked_at(marks, idx):
+                    mark = marks[name]
+                    nxt = _CONFIDENCES.index(mark["confidence"]) + 1
+                    mark["confidence"] = _CONFIDENCES[nxt % len(_CONFIDENCES)]
+            elif key == ord("x"):
+                for name in _marked_at(marks, idx):
+                    del marks[name]
     finally:
         cap.release()
         cv2.destroyAllWindows()
@@ -178,18 +243,7 @@ def label(video_path: Path, out_path: Path, max_height: int) -> int:
         print("refusing to save: nothing marked")
         return 1
 
-    events = {
-        name: (
-            None
-            if name not in marks
-            else {
-                "source_frame": marks[name]["source_frame"],
-                "confidence": marks[name]["confidence"],
-                "tolerance_frames": _DEFAULT_TOLERANCE[name],
-            }
-        )
-        for name in EVENT_ORDER
-    }
+    events = {name: marks.get(name) for name in EVENT_ORDER}
     payload = {
         "schema_version": SCHEMA_VERSION,
         "video_filename": video_path.name,

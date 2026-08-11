@@ -1,5 +1,5 @@
 {
-  "schema_version": "event_labels_v1",
+  "schema_version": "event_labels_v2",
   "video_filename": "jofra.mp4",
   "video_sha1": "ad8c576ecca7bb6f32e9f0d6eb3cb59a90d16eab",
   "source_fps": 29.97002997002997,
@@ -22,6 +22,7 @@
       "confidence": "high",
       "tolerance_frames": 1
     },
+    "arm_deceleration_complete": null,
     "follow_through": {
       "source_frame": 370,
       "confidence": "high",

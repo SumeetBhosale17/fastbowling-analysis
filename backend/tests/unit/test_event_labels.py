@@ -18,7 +18,13 @@ import pytest
 
 _LABEL_DIR = Path(__file__).parents[1] / "fixtures" / "events"
 _LABEL_FILES = sorted(_LABEL_DIR.glob("*.json"))
-_EVENT_ORDER = ("bfc", "ffc", "release", "follow_through")
+_EVENT_ORDER = (
+    "bfc",
+    "ffc",
+    "release",
+    "arm_deceleration_complete",
+    "follow_through",
+)
 _CONFIDENCES = {"high", "medium", "low"}
 
 
@@ -29,7 +35,7 @@ def _load(path: Path) -> dict:
 @pytest.mark.parametrize("path", _LABEL_FILES, ids=lambda p: p.stem)
 def test_label_file_is_wellformed(path: Path) -> None:
     labels = _load(path)
-    assert labels["schema_version"] == "event_labels_v1"
+    assert labels["schema_version"] == "event_labels_v2"
     assert labels["video_filename"]
     assert len(labels["video_sha1"]) == 40  # sha1 hexdigest
     assert labels["source_fps"] > 0
