@@ -37,3 +37,39 @@ motion:
   smoothing:
     window: 7 # Savitzky-Golay window (odd, > polyorder)
     polyorder: 3
+
+events:
+  # Which arm bowled. Angular sweep of the wrist about its own shoulder over
+  # the delivery separates the arms decisively - the bowling arm circumducts
+  # through more than a full turn while the front arm swings through about
+  # half. Vertical range and apex height do NOT work: on the reference clip
+  # both pick the front arm.
+  bowling_arm:
+    min_angular_sweep_deg: 270.0
+
+  # Foot contact: ankle at a local lowest point with vertical speed near zero.
+  # Speed is in normalized units per second - an airborne ankle runs 0.3-0.5,
+  # a planted one under 0.05.
+  foot_contact:
+    max_vertical_speed: 0.15
+    min_stationary_frames: 3
+    min_separation_frames: 5 # closer plants are one contact, not two
+
+  # Release: the bowling wrist passes its highest point as the arm reaches
+  # vertical. The ball leaves fractionally after that; the label tolerance
+  # absorbs the offset rather than a fudge factor here.
+  release:
+    max_frames_after_ffc: 60
+
+  # Arm deceleration complete: bowling wrist reaches its lowest point as the
+  # downswing ends.
+  arm_deceleration:
+    max_frames_after_release: 60
+
+  # Follow-through: whole-body motion settles once the action is over.
+  # UNVALIDATED - the reference clip cuts before this event, so these are
+  # starting points, not measured thresholds.
+  follow_through:
+    max_frames_after_arm_deceleration: 150
+    max_com_speed_fraction: 0.15
+    min_sustained_frames: 5

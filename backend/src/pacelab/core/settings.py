@@ -77,12 +77,45 @@ class MotionSettings(_StrictBase):
     smoothing: SmoothingSettings
 
 
+class BowlingArmSettings(_StrictBase):
+    min_angular_sweep_deg: float = Field(gt=0, le=1080)
+
+
+class FootContactSettings(_StrictBase):
+    max_vertical_speed: float = Field(gt=0)
+    min_stationary_frames: int = Field(ge=1)
+    min_separation_frames: int = Field(ge=1)
+
+
+class ReleaseSettings(_StrictBase):
+    max_frames_after_ffc: int = Field(ge=1)
+
+
+class ArmDecelerationSettings(_StrictBase):
+    max_frames_after_release: int = Field(ge=1)
+
+
+class FollowThroughSettings(_StrictBase):
+    max_frames_after_arm_deceleration: int = Field(ge=1)
+    max_com_speed_fraction: float = Field(gt=0, lt=1)
+    min_sustained_frames: int = Field(ge=1)
+
+
+class EventSettings(_StrictBase):
+    bowling_arm: BowlingArmSettings
+    foot_contact: FootContactSettings
+    release: ReleaseSettings
+    arm_deceleration: ArmDecelerationSettings
+    follow_through: FollowThroughSettings
+
+
 class Settings(_StrictBase):
     app: AppSettings
     data: DataSettings
     video: VideoSettings
     pose: PoseSettings
     motion: MotionSettings
+    events: EventSettings
 
 
 def load_settings(path: str | Path = "configs/config.yaml") -> Settings:

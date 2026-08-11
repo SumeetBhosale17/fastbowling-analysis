@@ -5,7 +5,7 @@
   "source_fps": 29.97002997002997,
   "total_frames": 371,
   "labelled_on": "2026-08-12",
-  "notes": "Side-on portion of an original 684-frame clip, cut at source frame 370 by scripts/split_clip.py; the remainder is front-on and lives in jofra1.mp4. Part one starts at source frame 0, so labelled indices are unchanged by the cut. follow_through sits on the final frame - the shot ends there, so the true end of the follow-through is not in view.",
+  "notes": "Side-on portion of an original 684-frame clip, cut at source frame 370 by scripts/split_clip.py; the remainder is front-on and lives in jofra1.mp4. Part one starts at source frame 0, so labelled indices are unchanged by the cut. Right-arm bowler: back foot is the right ankle, front foot the left. The footage is genuine slow motion (no duplicated frames), so source_fps 29.97 is the playback rate, not the capture rate - frame indices are reliable but any velocity in units-per-second is not real-world scaled. follow_through is null because the shot ends mid-action.",
   "events": {
     "bfc": {
       "source_frame": 281,
@@ -22,11 +22,11 @@
       "confidence": "high",
       "tolerance_frames": 1
     },
-    "arm_deceleration_complete": null,
-    "follow_through": {
-      "source_frame": 370,
+    "arm_deceleration_complete": {
+      "source_frame": 332,
       "confidence": "high",
-      "tolerance_frames": 5
-    }
+      "tolerance_frames": 3
+    },
+    "follow_through": null
   }
 }

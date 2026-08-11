@@ -148,6 +148,14 @@ def _load_existing(path: Path) -> dict[str, dict]:
     }
 
 
+def _load_notes(path: Path) -> str:
+    """Carry `notes` across a re-label. It records provenance a later reader
+    cannot reconstruct, and rewriting the payload would otherwise drop it."""
+    if not path.exists():
+        return ""
+    return json.loads(path.read_text(encoding="utf-8")).get("notes", "")
+
+
 def _marked_at(marks: dict[str, dict], idx: int) -> list[str]:
     return [n for n in EVENT_ORDER if n in marks and marks[n]["source_frame"] == idx]
 
@@ -178,6 +186,7 @@ def label(video_path: Path, out_path: Path, max_height: int) -> int:
     total = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
     fps = cap.get(cv2.CAP_PROP_FPS)
     marks = _load_existing(out_path)
+    notes = _load_notes(out_path)
     if marks:
         print(f"resuming from {out_path}: {len(marks)} event(s) already marked")
     idx, frame = 0, None
@@ -251,7 +260,7 @@ def label(video_path: Path, out_path: Path, max_height: int) -> int:
         "source_fps": fps,
         "total_frames": total,
         "labelled_on": date.today().isoformat(),
-        "notes": "",
+        "notes": notes,
         "events": events,
     }
 
