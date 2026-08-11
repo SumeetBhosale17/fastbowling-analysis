@@ -1,0 +1,31 @@
+{
+  "schema_version": "event_labels_v1",
+  "video_filename": "jofra.mp4",
+  "video_sha1": "ad8c576ecca7bb6f32e9f0d6eb3cb59a90d16eab",
+  "source_fps": 29.97002997002997,
+  "total_frames": 371,
+  "labelled_on": "2026-08-12",
+  "notes": "Side-on portion of an original 684-frame clip, cut at source frame 370 by scripts/split_clip.py; the remainder is front-on and lives in jofra1.mp4. Part one starts at source frame 0, so labelled indices are unchanged by the cut. follow_through sits on the final frame - the shot ends there, so the true end of the follow-through is not in view.",
+  "events": {
+    "bfc": {
+      "source_frame": 281,
+      "confidence": "high",
+      "tolerance_frames": 2
+    },
+    "ffc": {
+      "source_frame": 307,
+      "confidence": "high",
+      "tolerance_frames": 2
+    },
+    "release": {
+      "source_frame": 319,
+      "confidence": "high",
+      "tolerance_frames": 1
+    },
+    "follow_through": {
+      "source_frame": 370,
+      "confidence": "high",
+      "tolerance_frames": 5
+    }
+  }
+}
