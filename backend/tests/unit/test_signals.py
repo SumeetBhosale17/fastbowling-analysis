@@ -4,7 +4,12 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
-from pacelab.motion.signals import extract_xy, smooth_positions, velocities
+from pacelab.motion.signals import (
+    extract_xy,
+    mask_low_visibility,
+    smooth_positions,
+    velocities,
+)
 
 
 def _ramp(t_len: int, slope: float = 0.01, intercept: float = 0.1) -> np.ndarray:
@@ -74,3 +79,35 @@ def test_nonpositive_fps_raises() -> None:
     pos = _ramp(21)
     with pytest.raises(ValueError):
         velocities(pos, window=7, polyorder=3, max_gap=3, fps=0.0)
+
+
+def test_mask_low_visibility_nans_below_threshold() -> None:
+    lm = np.zeros((2, 33, 4), dtype=np.float32)
+    lm[..., :3] = 0.5
+    lm[..., 3] = 0.9  # all visible
+    lm[:, 5, 3] = 0.3  # landmark 5 below threshold
+    out = mask_low_visibility(lm, threshold=0.5)
+    assert np.isnan(out[:, 5, :3]).all()  # position NaN'd
+    assert (out[:, 5, 3] == 0.3).all()  # visibility preserved
+    assert np.isfinite(out[:, 0, :3]).all()  # a visible landmark untouched
+
+
+def test_mask_threshold_is_exclusive() -> None:
+    lm = np.zeros((1, 33, 4), dtype=np.float32)
+    lm[..., :3] = 0.5
+    lm[..., 3] = 0.5  # exactly at threshold -> kept (not < threshold)
+    out = mask_low_visibility(lm, threshold=0.5)
+    assert np.isfinite(out[:, 0, :3]).all()
+
+
+def test_mask_preserves_no_pose_nan() -> None:
+    lm = np.full((1, 33, 4), np.nan, dtype=np.float32)  # no pose anywhere
+    out = mask_low_visibility(lm, threshold=0.5)
+    assert np.isnan(out).all()
+
+
+def test_mask_wrong_shape_raises() -> None:
+    import pytest
+
+    with pytest.raises(ValueError):
+        mask_low_visibility(np.zeros((2, 33, 2), dtype=np.float32), threshold=0.5)

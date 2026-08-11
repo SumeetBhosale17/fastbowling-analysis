@@ -30,3 +30,10 @@ pose:
   qa:
     max_no_pose_ratio: 0.7
     max_pose_gap: 60
+
+motion:
+  visibility_threshold: 0.5 # landmarks below this confidence treated as missing.
+  max_interpolation_gap: 5 # interior NaN runs <= this many frames are bridged
+  smoothing:
+    window: 7 # Savitzky-Golay window (odd, > polyorder)
+    polyorder: 3

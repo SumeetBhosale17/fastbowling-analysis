@@ -1,10 +1,10 @@
-"""End-to-end smoke test for the pose pipeline.
+"""End-to-end smoke test for the pipeline.
 
 Runs `process_video` against a synthetic clip and asserts contracts on the
-four output files. Does not assert pose values - synthetic frames don't
-contain human, so `qa_passed` may be False. We're verifying that the
-pipeline runs end-to-end and writes the expected file shapes, not that
-pose detection finds anything.
+six output files. Does not assert pose values - synthetic frames don't
+contain human, so `qa_passed` may be False and motion signals will be all
+NaN. We're verifying that the pipeline runs end-to-end and writes the
+expected file shapes, not that pose detection finds anything.
 """
 
 from __future__ import annotations
@@ -67,3 +67,25 @@ def test_pipeline_smoke(synthetic_video: Path, tmp_path: Path) -> None:
     assert vmeta["video_id"]
     assert vmeta["fps"] > 0
     assert vmeta["total_frames"] >= 1
+
+    # motion.npz: signals derived from landmarks, aligned frame-for-frame.
+    with np.load(out / "motion.npz") as motion:
+        assert motion["positions"].shape == (n_frames, 33, 2)
+        assert motion["velocity"].shape == (n_frames, 33, 2)
+        assert motion["valid"].shape == (n_frames, 33)
+        assert motion["com"].shape == (n_frames, 2)
+        assert motion["positions"].dtype == np.float64
+        assert motion["valid"].dtype == np.bool_
+
+    # motion_meta.json: sampling rate and the settings actually applied.
+    mmeta = json.loads((out / "motion_meta.json").read_text())
+    assert mmeta["schema_version"] == "motion_signals_v1"
+    assert mmeta["num_frames"] == n_frames
+    assert mmeta["sample_fps"] == vmeta["fps"] / mmeta["frame_stride"]
+    assert 0.0 <= mmeta["valid_ratio"] <= 1.0
+    assert set(mmeta["params"]) == {
+        "visibility_threshold",
+        "max_interpolation_gap",
+        "smoothing_window",
+        "smoothing_polyorder",
+    }

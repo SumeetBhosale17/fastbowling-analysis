@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import numpy as np
-from pacelab.motion.kinematics import LEFT_HIP, RIGHT_HIP, angle_at, com
+from pacelab.core.landmarks import PoseLandmark
+from pacelab.motion.kinematics import angle_at, com
 
 
 def _positions(points: dict[int, tuple[float, float]], t_len: int = 1) -> np.ndarray:
@@ -40,12 +41,14 @@ def test_degenerate_segment_is_nan() -> None:
 
 
 def test_com_is_hip_midpoint() -> None:
-    pos = _positions({LEFT_HIP: (0.0, 0.0), RIGHT_HIP: (1.0, 0.4)})
+    pos = _positions(
+        {PoseLandmark.LEFT_HIP: (0.0, 0.0), PoseLandmark.RIGHT_HIP: (1.0, 0.4)}
+    )
     result = com(pos)
     assert result.shape == (1, 2)
     np.testing.assert_allclose(result[0], (0.5, 0.2))
 
 
 def test_com_nan_when_hip_missing() -> None:
-    pos = _positions({LEFT_HIP: (0.0, 0.0)})  # RIGHT_HIP left NaN
+    pos = _positions({PoseLandmark.LEFT_HIP: (0.0, 0.0)})  # RIGHT_HIP left NaN
     assert np.isnan(com(pos)).all()

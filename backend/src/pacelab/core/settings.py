@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import Any
 
 import yaml
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class _StrictBase(BaseModel):
@@ -58,11 +58,31 @@ class PoseSettings(_StrictBase):
     qa: QASettings
 
 
+class SmoothingSettings(_StrictBase):
+    window: int = Field(ge=3)
+    polyorder: int = Field(ge=1)
+
+    @model_validator(mode="after")
+    def _check_window(self) -> SmoothingSettings:
+        if self.window % 2 == 0:
+            raise ValueError("motion.smoothing.window must be odd.")
+        if self.polyorder >= self.window:
+            raise ValueError("motion.smoothing.polyorder must be < window")
+        return self
+
+
+class MotionSettings(_StrictBase):
+    visibility_threshold: float = Field(ge=0, le=1)
+    max_interpolation_gap: int = Field(ge=0)
+    smoothing: SmoothingSettings
+
+
 class Settings(_StrictBase):
     app: AppSettings
     data: DataSettings
     video: VideoSettings
     pose: PoseSettings
+    motion: MotionSettings
 
 
 def load_settings(path: str | Path = "configs/config.yaml") -> Settings:
