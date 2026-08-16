@@ -36,6 +36,25 @@ def angle_at(
     return np.degrees(np.arccos(cos))
 
 
+def torso_length(positions: np.ndarray) -> np.ndarray:
+    """Shoulder-midpoint to hip-midpoint distance per frame, as a body-scale
+    reference.
+
+    positions: [T, 33, 2]. Returns [T]. Normalized coordinates shrink as the
+    bowler moves away from the camera, so thresholds expressed in torso
+    lengths survive a clip shot from further back; thresholds in raw
+    normalized units do not.
+    """
+    shoulders = (
+        positions[:, PoseLandmark.LEFT_SHOULDER, :]
+        + positions[:, PoseLandmark.RIGHT_SHOULDER, :]
+    ) / 2.0
+    hips = (
+        positions[:, PoseLandmark.LEFT_HIP, :] + positions[:, PoseLandmark.RIGHT_HIP, :]
+    ) / 2.0
+    return np.linalg.norm(shoulders - hips, axis=1)
+
+
 def com(positions: np.ndarray) -> np.ndarray:
     """Approximate centre of mass per frame as the hip midpoint.
 
