@@ -7,6 +7,8 @@ available. Accuracy against real bowling is covered by
 
 from __future__ import annotations
 
+import warnings
+
 import numpy as np
 import pytest
 from pacelab.core.landmarks import PoseLandmark as LM
@@ -27,6 +29,7 @@ from pacelab.events.detectors import (
     find_follow_through,
     find_foot_contacts,
     find_release,
+    ground_level,
 )
 from pacelab.motion.kinematics import torso_length
 
@@ -239,4 +242,41 @@ def test_find_foot_contacts_reports_reason_without_a_stride() -> None:
     contacts = find_foot_contacts(pos, velocity, com, 70, _CONTACT)
     assert contacts.ffc.frame is None
     assert contacts.front_leg is None
+    # Plants were found, they were just too narrow - a different failure from
+    # finding none at all, and the reason has to say which.
     assert contacts.ffc.reason is not None
+    assert "torso lengths of stride extension" in contacts.ffc.reason
+
+
+def _untracked_ankles(t_len: int) -> np.ndarray:
+    pos = _body(t_len)
+    pos[:, LM.LEFT_ANKLE, :] = np.nan
+    pos[:, LM.RIGHT_ANKLE, :] = np.nan
+    return pos
+
+
+def test_ground_level_is_nan_without_tracked_ankles() -> None:
+    """Neither ankle tracked is a normal state on poor footage, so it must not
+    warn on every frame."""
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        ground = ground_level(_untracked_ankles(20), 5)
+    assert np.isnan(ground).all()
+
+
+def test_find_foot_contacts_distinguishes_no_plants_from_short_stride() -> None:
+    pos = _untracked_ankles(90)
+    com = np.stack([0.5 - np.arange(90) * 0.004, np.full(90, 0.6)], axis=1)
+    contacts = find_foot_contacts(pos, np.zeros_like(pos), com, 70, _CONTACT)
+    assert contacts.bfc.frame is None
+    assert contacts.bfc.reason is not None
+    assert "no ankle plant detected" in contacts.bfc.reason
+
+
+def test_find_foot_contacts_reports_untracked_com() -> None:
+    pos = _body(90)
+    com = np.full((90, 2), np.nan)
+    contacts = find_foot_contacts(pos, np.zeros_like(pos), com, 70, _CONTACT)
+    assert contacts.bfc.frame is None
+    assert contacts.bfc.reason is not None
+    assert "centre of mass" in contacts.bfc.reason
