@@ -44,6 +44,23 @@ def angle_above_horizontal(
     return np.degrees(np.arctan2(-rel[:, 1], rel[:, 0]))
 
 
+def extended_arm_angle(
+    positions: np.ndarray, wrist: int, shoulder: int, min_radius_torso_frac: float
+) -> np.ndarray:
+    """Arm angle with folded-arm frames blanked.
+
+    When the wrist sits close to its shoulder the angle is both numerically
+    unstable and not part of the delivery arc - a bowler's arm is extended
+    through the swing. Every consumer of the angle needs the same guard, so it
+    lives here rather than being reapplied per detector.
+    """
+    angle = angle_above_horizontal(positions, wrist, shoulder)
+    radius = np.linalg.norm(
+        positions[:, wrist, :] - positions[:, shoulder, :], axis=1
+    ) / torso_length(positions)
+    return np.where(radius > min_radius_torso_frac, angle, np.nan)
+
+
 def unwrap_deg(angle_deg: np.ndarray) -> np.ndarray:
     """Unwrap while leaving NaN frames NaN. Unwrapping across a gap assumes
     continuity through it, which is why long gaps are masked upstream."""
@@ -86,23 +103,16 @@ def identify_bowling_arm(
     about half. Vertical range and apex height do NOT separate them - on the
     reference clip both pick the front arm.
     """
-    torso = torso_length(positions)
     angles: dict[str, np.ndarray] = {}
     peaks: dict[str, tuple[float, int]] = {}
 
     for side, (wrist, shoulder) in ARMS.items():
-        angle = angle_above_horizontal(positions, wrist, shoulder)
-        radius = (
-            np.linalg.norm(positions[:, wrist, :] - positions[:, shoulder, :], axis=1)
-            / torso
+        # Blanking the angle rather than the resulting speed matters: a
+        # corrupt sample also poisons the central difference on both its
+        # neighbours, which masking the output alone would leave in place.
+        angle = extended_arm_angle(
+            positions, wrist, shoulder, settings.min_radius_torso_frac
         )
-        # A folded arm puts the wrist near the shoulder, where the angle is
-        # numerically unstable and yields a spurious speed peak mid-run-up.
-        # Blank the angle itself rather than the resulting speed: a corrupt
-        # sample also poisons the central difference on both its neighbours,
-        # which masking the output alone would leave in place.
-        extended = radius > settings.min_radius_torso_frac
-        angle = np.where(extended, angle, np.nan)
         speed = angular_speed(angle)
         angles[side] = angle
         if np.isnan(speed).all():

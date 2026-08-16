@@ -18,7 +18,7 @@ from pacelab.core.settings import (
     FootContactSettings,
     ReleaseSettings,
 )
-from pacelab.events.assignment import ARMS, angle_above_horizontal, unwrap_deg
+from pacelab.events.assignment import ARMS, extended_arm_angle, unwrap_deg
 from pacelab.motion.kinematics import torso_length
 
 ANKLES: dict[str, int] = {
@@ -50,6 +50,7 @@ def find_release(
     bowling_arm: str,
     anchor_frame: int,
     settings: ReleaseSettings,
+    min_radius_torso_frac: float,
 ) -> Detection:
     """First frame on the approach to peak arm speed at which the arm has
     passed vertical by `degrees_past_vertical`.
@@ -66,9 +67,13 @@ def find_release(
     # arm is often already past that at peak speed - compared raw, the anchor
     # reads as a negative angle and the scan stops on its first step. Local
     # unwrapping keeps the arc continuous without accumulating the turns the
-    # arm makes earlier in the run-up.
+    # arm makes earlier in the run-up. The folded-arm guard is the anchor's:
+    # without it the scan can lock onto the arm passing vertical during the
+    # gather, while the wrist is still tucked near the shoulder.
     angle = unwrap_deg(
-        angle_above_horizontal(positions, wrist, shoulder)[floor : anchor_frame + 1]
+        extended_arm_angle(positions, wrist, shoulder, min_radius_torso_frac)[
+            floor : anchor_frame + 1
+        ]
     )
 
     i = anchor_frame - floor

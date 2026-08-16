@@ -156,13 +156,14 @@ def test_find_release_lands_past_vertical() -> None:
         np.arange(80) * 5.0 - 110.0,
         0.2,
     )
-    assert find_release(pos, "right", anchor_frame=60, settings=_RELEASE).frame == 43
+    found = find_release(pos, "right", 60, _RELEASE, _ARM.min_radius_torso_frac)
+    assert found.frame == 43
 
 
 def test_find_release_reports_reason_when_never_below_threshold() -> None:
     pos = _body(80)
     _rotate_arm(pos, LM.RIGHT_WRIST, LM.RIGHT_SHOULDER, np.full(80, 150.0), 0.2)
-    found = find_release(pos, "right", anchor_frame=60, settings=_RELEASE)
+    found = find_release(pos, "right", 60, _RELEASE, _ARM.min_radius_torso_frac)
     assert found.frame is None
     assert found.reason is not None
 
