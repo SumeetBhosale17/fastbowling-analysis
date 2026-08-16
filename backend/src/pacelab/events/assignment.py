@@ -44,7 +44,7 @@ def angle_above_horizontal(
     return np.degrees(np.arctan2(-rel[:, 1], rel[:, 0]))
 
 
-def _unwrapped(angle_deg: np.ndarray) -> np.ndarray:
+def unwrap_deg(angle_deg: np.ndarray) -> np.ndarray:
     """Unwrap while leaving NaN frames NaN. Unwrapping across a gap assumes
     continuity through it, which is why long gaps are masked upstream."""
     out = np.full_like(angle_deg, np.nan)
@@ -60,7 +60,7 @@ def angular_speed(angle_deg: np.ndarray) -> np.ndarray:
     against each other, and the sample rate is a playback rate on slow-motion
     footage anyway.
     """
-    unwrapped = _unwrapped(angle_deg)
+    unwrapped = unwrap_deg(angle_deg)
     speed = np.full_like(unwrapped, np.nan)
     speed[1:-1] = np.abs(unwrapped[2:] - unwrapped[:-2]) / 2.0
     return speed
@@ -98,8 +98,12 @@ def identify_bowling_arm(
         )
         # A folded arm puts the wrist near the shoulder, where the angle is
         # numerically unstable and yields a spurious speed peak mid-run-up.
+        # Blank the angle itself rather than the resulting speed: a corrupt
+        # sample also poisons the central difference on both its neighbours,
+        # which masking the output alone would leave in place.
         extended = radius > settings.min_radius_torso_frac
-        speed = np.where(extended, angular_speed(angle), np.nan)
+        angle = np.where(extended, angle, np.nan)
+        speed = angular_speed(angle)
         angles[side] = angle
         if np.isnan(speed).all():
             continue

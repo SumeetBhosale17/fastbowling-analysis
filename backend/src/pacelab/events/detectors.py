@@ -18,7 +18,7 @@ from pacelab.core.settings import (
     FootContactSettings,
     ReleaseSettings,
 )
-from pacelab.events.assignment import ARMS, angle_above_horizontal
+from pacelab.events.assignment import ARMS, angle_above_horizontal, unwrap_deg
 from pacelab.motion.kinematics import torso_length
 
 ANKLES: dict[str, int] = {
@@ -59,21 +59,29 @@ def find_release(
     release.
     """
     wrist, shoulder = ARMS[bowling_arm]
-    angle = angle_above_horizontal(positions, wrist, shoulder)
     threshold = 90.0 + settings.degrees_past_vertical
     floor = max(0, anchor_frame - settings.max_frames_before_arm_speed_peak)
 
-    i = anchor_frame
-    while i > floor and (not np.isfinite(angle[i]) or angle[i] >= threshold):
+    # Unwrap over the search window only. atan2 wraps at 180 degrees, and the
+    # arm is often already past that at peak speed - compared raw, the anchor
+    # reads as a negative angle and the scan stops on its first step. Local
+    # unwrapping keeps the arc continuous without accumulating the turns the
+    # arm makes earlier in the run-up.
+    angle = unwrap_deg(
+        angle_above_horizontal(positions, wrist, shoulder)[floor : anchor_frame + 1]
+    )
+
+    i = anchor_frame - floor
+    while i > 0 and (not np.isfinite(angle[i]) or angle[i] >= threshold):
         i -= 1
-    if i == floor:
+    if i == 0:
         return Detection(
             None,
             f"arm stayed above {threshold:.0f} deg for the whole "
             f"{settings.max_frames_before_arm_speed_peak}-frame window before "
             "peak arm speed",
         )
-    return Detection(i + 1)
+    return Detection(floor + i + 1)
 
 
 def ground_level(positions: np.ndarray, window: int) -> np.ndarray:
