@@ -90,10 +90,16 @@ def ground_level(positions: np.ndarray, window: int) -> np.ndarray:
     Local rather than global because perspective moves the ground line as the
     bowler travels across the frame.
     """
-    both = np.nanmax(np.vstack([positions[:, lm, 1] for lm in ANKLES.values()]), axis=0)
-    return np.array(
-        [np.nanmax(both[max(0, k - window) : k + window + 1]) for k in range(both.size)]
+    ankles = np.vstack([positions[:, lm, 1] for lm in ANKLES.values()])
+    # -inf rather than np.nanmax: a window with neither ankle tracked is a
+    # normal state on poor footage, and nanmax reports it by warning on every
+    # frame. Carrying -inf through and restoring NaN at the end says the same
+    # thing without the noise.
+    filled = np.where(np.isfinite(ankles), ankles, -np.inf).max(axis=0)
+    rolled = np.array(
+        [filled[max(0, k - window) : k + window + 1].max() for k in range(filled.size)]
     )
+    return np.where(np.isneginf(rolled), np.nan, rolled)
 
 
 def plant_windows(
@@ -173,7 +179,12 @@ def find_foot_contacts(
     """
     torso = torso_length(positions)
     ground = ground_level(positions, settings.ground_window_frames)
-    travel = np.sign(np.nanmean(np.diff(com[:release_frame, 0])))
+
+    drift = np.diff(com[:release_frame, 0])
+    if not np.isfinite(drift).any():
+        untracked = Detection(None, "centre of mass not tracked before release")
+        return FootContacts(untracked, untracked, None, None)
+    travel = np.sign(np.nanmean(drift))
 
     candidates: list[tuple[int, str, float]] = []
     for side, ankle in ANKLES.items():
@@ -194,15 +205,27 @@ def find_foot_contacts(
             candidates.append((frame, side, float(lead)))
     candidates.sort()
 
+    if not candidates:
+        # Distinct from finding plants that are simply too short a stride:
+        # this means no ankle was ever both slow and near the ground, which on
+        # real footage points at pose coverage rather than at the threshold.
+        no_plant = Detection(
+            None,
+            "no ankle plant detected before release - no frames with an ankle "
+            "both stationary and near the ground",
+        )
+        return FootContacts(no_plant, no_plant, None, None)
+
     strides = [
         c for c in candidates if c[2] >= settings.min_stride_separation_torso_frac
     ]
     if not strides:
+        widest = max(c[2] for c in candidates)
         no_stride = Detection(
             None,
-            "no plant before release reached "
-            f"{settings.min_stride_separation_torso_frac} torso lengths of "
-            "stride extension",
+            f"{len(candidates)} plant(s) found before release but the widest "
+            f"reached only {widest:.2f} torso lengths of stride extension, "
+            f"under {settings.min_stride_separation_torso_frac}",
         )
         return FootContacts(no_stride, no_stride, None, None)
 
