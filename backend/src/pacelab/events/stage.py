@@ -59,7 +59,13 @@ def detect_events(
         return dict.fromkeys(EVENT_ORDER, Detection(None, arm.reason)), assignment
 
     found: dict[str, Detection] = {}
-    release = find_release(positions, arm.side, arm.anchor_frame, cfg.release)
+    release = find_release(
+        positions,
+        arm.side,
+        arm.anchor_frame,
+        cfg.release,
+        cfg.bowling_arm.min_radius_torso_frac,
+    )
     found["release"] = release
 
     if release.frame is None:
