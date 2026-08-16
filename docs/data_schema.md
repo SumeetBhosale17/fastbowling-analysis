@@ -74,6 +74,49 @@ Sidecar for `motion.npz`.
 | `params` | object | The `motion:` settings used: `visibility_threshold`, `max_interpolation_gap`, `smoothing_window`, `smoothing_polyorder`. |
 | `valid_ratio` | float | Fraction of `[T, 33]` entries that are valid. |
 
+## `events.json`
+
+Delivery events located in the conditioned motion signals. Written by the
+event stage from `motion.npz`.
+
+| Field | Type | Notes |
+|---|---|---|
+| `schema_version` | string | Currently `events_v1`. |
+| `video_id` | string | |
+| `sample_fps` | float | Playback rate. On slow-motion footage this is not the capture rate. |
+| `num_frames` | int | `T`, matches `motion.npz` axis 0. |
+| `assignment` | object | See below. |
+| `events` | object | One entry per event, see below. |
+| `params` | object | The `events:` settings that produced this file. |
+
+### `assignment`
+
+| Field | Type | Notes |
+|---|---|---|
+| `bowling_arm` | `"left"` \| `"right"` \| null | Arm with the highest angular speed about its own shoulder. |
+| `front_leg` / `back_leg` | `"left"` \| `"right"` \| null | Derived from which ankle plants at full stride extension. |
+| `delivery_anchor_frame` | int \| null | Frame of peak bowling-arm angular speed; anchors every other event. |
+| `arm_sweep_deg` | object | Angular sweep per side over the anchor window — the evidence behind `bowling_arm`. |
+
+### `events`
+
+Keys, in temporal order: `bfc`, `ffc`, `release`, `arm_deceleration_complete`,
+`follow_through`. Each is **always an object**, even when undetected — unlike
+the label fixtures, which use a bare `null`. A detection output has to explain
+itself, and the explanation belongs next to the thing it explains.
+
+| Field | Type | Notes |
+|---|---|---|
+| `frame` | int \| null | Index into `motion.npz`. Null when not detected. |
+| `timestamp_ms` | int \| null | From `landmarks_meta.json`, for seeking the source video. |
+| `reason` | string \| null | Why detection failed. Null when `frame` is set. |
+
+Detection is a cascade: the bowling arm anchors release, and release anchors
+the foot contacts. A missing prerequisite makes everything downstream null
+with a reason rather than a guess. Front-on footage foreshortens the arm's
+circumduction, so `bowling_arm` comes back null and no events are reported —
+the intended behaviour for input outside v1 scope.
+
 ## `metadata.json`
 
 Video-level metadata.
