@@ -79,17 +79,23 @@ class MotionSettings(_StrictBase):
 
 class BowlingArmSettings(_StrictBase):
     min_angular_sweep_deg: float = Field(gt=0, le=1080)
+    sweep_half_window_frames: int = Field(ge=1)
+    min_radius_torso_frac: float = Field(gt=0, le=2)
 
 
 class FootContactSettings(_StrictBase):
     max_vertical_speed: float = Field(gt=0)
     min_stationary_frames: int = Field(ge=1)
     min_separation_frames: int = Field(ge=1)
+    ground_window_frames: int = Field(ge=1)
+    max_height_above_ground_torso_frac: float = Field(gt=0, lt=1)
+    contact_depth_tolerance: float = Field(gt=0, lt=1)
+    min_stride_separation_torso_frac: float = Field(gt=0)
 
 
 class ReleaseSettings(_StrictBase):
     degrees_past_vertical: float = Field(gt=0, lt=90)
-    max_frames_after_ffc: int = Field(ge=1)
+    max_frames_before_arm_speed_peak: int = Field(ge=1)
 
 
 class ArmDecelerationSettings(_StrictBase):
