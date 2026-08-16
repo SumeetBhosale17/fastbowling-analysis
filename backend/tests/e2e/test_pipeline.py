@@ -1,10 +1,11 @@
 """End-to-end smoke test for the pipeline.
 
 Runs `process_video` against a synthetic clip and asserts contracts on the
-six output files. Does not assert pose values - synthetic frames don't
-contain human, so `qa_passed` may be False and motion signals will be all
-NaN. We're verifying that the pipeline runs end-to-end and writes the
-expected file shapes, not that pose detection finds anything.
+seven output files. Does not assert pose values - synthetic frames don't
+contain human, so `qa_passed` may be False, motion signals will be all NaN
+and no events will be detected. We're verifying that the pipeline runs
+end-to-end and writes the expected file shapes, not that pose detection
+finds anything.
 """
 
 from __future__ import annotations
@@ -89,3 +90,22 @@ def test_pipeline_smoke(synthetic_video: Path, tmp_path: Path) -> None:
         "smoothing_window",
         "smoothing_polyorder",
     }
+
+    # events.json: every event reported, undetected ones carrying a reason.
+    events = json.loads((out / "events.json").read_text())
+    assert events["schema_version"] == "events_v1"
+    assert events["num_frames"] == n_frames
+    assert set(events["events"]) == {
+        "bfc",
+        "ffc",
+        "release",
+        "arm_deceleration_complete",
+        "follow_through",
+    }
+    for name, event in events["events"].items():
+        assert set(event) == {"frame", "timestamp_ms", "reason"}, name
+        # No human in frame, so nothing should be detected - and a null event
+        # must always say why.
+        assert event["frame"] is None, name
+        assert event["reason"], name
+    assert events["assignment"]["bowling_arm"] is None

@@ -37,3 +37,64 @@ motion:
   smoothing:
     window: 7 # Savitzky-Golay window (odd, > polyorder)
     polyorder: 3
+
+events:
+  # Which arm bowled, and the instant of delivery. Both come from one
+  # measurement: the arm with the highest angular speed about its own shoulder
+  # is the bowling arm, and the frame of that peak anchors every other event.
+  # Angular speed is only trusted while the arm is extended - when the wrist
+  # passes near the shoulder the radius approaches zero and the angle swings
+  # wildly, which otherwise puts the peak in the middle of the run-up.
+  # Sweep confirms the choice: the bowling arm circumducts past a full turn
+  # while the front arm manages about half. Vertical range and apex height do
+  # NOT work - on the reference clip both pick the front arm.
+  bowling_arm:
+    min_angular_sweep_deg: 270.0
+    sweep_half_window_frames: 30
+    min_radius_torso_frac: 0.6
+
+  # Foot contact: the ankle must be slow AND near the ground. Speed alone is
+  # not enough - an airborne foot at the apex of its swing also has zero
+  # vertical velocity, which produced a false back-foot contact until the
+  # height test was added. Ground level is a rolling maximum over both ankles
+  # so it tracks the perspective shift as the bowler crosses the frame.
+  foot_contact:
+    max_vertical_speed: 0.15 # normalized units/s; airborne runs 0.3-0.5
+    min_stationary_frames: 3
+    min_separation_frames: 5 # closer plants are one contact, not two
+    ground_window_frames: 15
+    max_height_above_ground_torso_frac: 0.15
+    contact_depth_tolerance: 0.01 # how close to its floor counts as landed
+    # The delivery stride is the longest: at FFC the ankles are over a torso
+    # length apart. The back leg swinging through afterwards clears the front
+    # leg by roughly half that, which is how the two are told apart.
+    min_stride_separation_torso_frac: 0.8
+
+  # Release: the bowling arm continues past vertical before the ball leaves,
+  # so the wrist apex is systematically early - 2 frames on the reference
+  # clip. Detecting a fixed angle past vertical instead removes that bias and,
+  # unlike a frame offset, does not change meaning with frame rate.
+  #
+  # Found by scanning backward from the arm-speed peak, not forward from foot
+  # contact: the arm crosses vertical during the run-up too, and anchoring on
+  # FFC would be circular now that FFC is located relative to release.
+  #
+  # 11 degrees is the centre of the 8-14 degree band that all resolve to the
+  # labelled release frame on the one clip we have. Revisit once there are
+  # more - a single clip cannot pin this down.
+  release:
+    degrees_past_vertical: 11.0
+    max_frames_before_arm_speed_peak: 30
+
+  # Arm deceleration complete: bowling wrist reaches its lowest point as the
+  # downswing ends.
+  arm_deceleration:
+    max_frames_after_release: 60
+
+  # Follow-through: whole-body motion settles once the action is over.
+  # UNVALIDATED - the reference clip cuts before this event, so these are
+  # starting points, not measured thresholds.
+  follow_through:
+    max_frames_after_arm_deceleration: 150
+    max_com_speed_fraction: 0.15
+    min_sustained_frames: 5

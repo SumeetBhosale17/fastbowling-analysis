@@ -5,6 +5,7 @@ from pathlib import Path
 
 from pacelab.core.context_factory import build_video_context
 from pacelab.core.settings import Settings, load_settings
+from pacelab.events.stage import run_events
 from pacelab.motion.stage import run_motion
 from pacelab.pose.estimator import run_pose
 from pacelab.utils.logging import setup_logging
@@ -27,7 +28,8 @@ def process_video(video_path: Path, settings: Settings) -> Path:
     write_metadata(ctx, settings)
     frames = iter_video_frames(ctx.video_path, ctx.frame_stride)
     run_pose(ctx, frames, settings)
-    return run_motion(ctx, settings)
+    run_motion(ctx, settings)
+    return run_events(ctx, settings)
 
 
 def main() -> None:
